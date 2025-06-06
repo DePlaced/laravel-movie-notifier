@@ -1,3 +1,16 @@
+FROM node:20-alpine AS nodebuild
+WORKDIR /app
+
+# Only copy package files first for cache optimization
+COPY package.json package-lock.json* yarn.lock* ./
+RUN npm install
+
+# Now copy the rest of your app (for Vite to see resources)
+COPY . .
+
+RUN npm run build
+
+# ---- Main PHP/Nginx image ----
 FROM php:8.4-fpm-alpine
 
 # Install system dependencies
@@ -22,8 +35,9 @@ RUN docker-php-ext-configure gd \
     --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install pdo pdo_mysql gd intl mbstring opcache
 
-# Install Composer
-COPY --from=composer:2.8.9 /usr/bin/composer /usr/bin/composer
+# 1. Copy composer files and install dependencies first
+COPY composer.json composer.lock ./
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader
 
 # Set working directory
 WORKDIR /var/www/html
