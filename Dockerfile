@@ -35,12 +35,17 @@ RUN docker-php-ext-configure gd \
     --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install pdo pdo_mysql gd intl mbstring opcache
 
-# 1. Copy composer files and install dependencies first
-COPY composer.json composer.lock ./
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader
+# Install Composer first (before you use it!)
+COPY --from=composer:2.8.9 /usr/bin/composer /usr/bin/composer
 
 # Set working directory
 WORKDIR /var/www/html
+
+# Copy composer files
+COPY composer.json composer.lock ./
+
+# Install PHP dependencies
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader
 
 # Copy your Laravel app files
 COPY . .
