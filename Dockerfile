@@ -1,20 +1,47 @@
-FROM richarvey/nginx-php-fpm:3.1.6
+FROM php:8.4-fpm-alpine
 
+# Install system dependencies
+RUN apk add --no-cache \
+    nginx \
+    bash \
+    curl \
+    supervisor \
+    libpng \
+    libpng-dev \
+    libjpeg-turbo-dev \
+    libwebp-dev \
+    freetype-dev \
+    zip \
+    unzip \
+    git \
+    icu-dev \
+    oniguruma-dev
+
+# Install PHP extensions
+RUN docker-php-ext-configure gd \
+    --with-freetype --with-jpeg --with-webp \
+    && docker-php-ext-install pdo pdo_mysql gd intl mbstring opcache
+
+# Install Composer
+COPY --from=composer:2.8.9 /usr/bin/composer /usr/bin/composer
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Copy your Laravel app files
 COPY . .
 
-# Image config
-ENV SKIP_COMPOSER 1
-ENV WEBROOT /var/www/html/public
-ENV PHP_ERRORS_STDERR 1
-ENV RUN_SCRIPTS 1
-ENV REAL_IP_HEADER 1
+# Set permissions for Laravel
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Laravel config
-ENV APP_ENV production
-ENV APP_DEBUG false
-ENV LOG_CHANNEL stderr
+# Nginx config
+COPY ./docker/nginx.conf /etc/nginx/nginx.conf
 
-# Allow composer to run as root
-ENV COMPOSER_ALLOW_SUPERUSER 1
+# Supervisor config for PHP and Nginx
+COPY ./docker/supervisord.conf /etc/supervisord.conf
 
-CMD ["/start.sh"]
+EXPOSE 80
+
+# Start supervisor to run both php-fpm and nginx
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
